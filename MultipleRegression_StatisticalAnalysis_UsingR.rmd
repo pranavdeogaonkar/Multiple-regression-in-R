@@ -1,0 +1,417 @@
+---
+title: "Statistics_Assignment_Multiple.Regression_C00246393"
+author: "Pranav_Deogaonkar"
+date: "09/05/2020"
+output:
+  word_document:
+    toc: yes
+    toc_depth: '2'
+  html_document:
+    code_folding: show
+    highlight: tango
+    number_sections: yes
+    toc: yes
+    toc_depth: 2
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Introduction
+
+## 1.1 Research Question:
+
+   To predict the solar radiation level for four months (september-december 2016) at Hawaii islands. Do factors such as Temperature, Humidity, Wind Speed, DayLight duration and Wind Pressure can predict the Solar radiation level?
+   
+## 1.2 Research Rationale:
+
+   This research aims at predicting solar radiation, thus interest into meteorological data and facts and phenomena resulting from it made me to research on this topic.
+   
+# 2. Presentation of Dataset:
+
+  This dataset contains meteorological data from the Hawaii Space Exploration Analog and Simulation(HI-SEAS) weather station for the time period from september-december 2016.This dataset contains below columns in csv format file:
+  The units of each dataset are:
+
+  Solar radiation: watts per meter^2
+  Temperature: degrees Fahrenheit
+  Humidity: percent
+  Barometric pressure: Hg
+  Wind direction: degrees
+  Wind speed: miles per hour
+  Sunrise/sunset: Hawaii time
+  
+  This dataset is from Kaggle and is part of NASA hackathon.
+
+
+# 3. Data Analysis:
+
+```{r}
+# Importing packages dplyr and ggplot2
+library(dplyr)
+library(ggplot2)
+
+```
+
+
+## 3.1 Data preparation:
+
+```{r}
+# Importing lubridate package
+library(lubridate)
+
+# Reading "csv" file and displaying top few records.
+Solar_Dataset <- read.csv("D://Submissions//Statistics//SolarEnergy//SolarPrediction.csv")
+head(Solar_Dataset)
+
+# Transforming sunrise and sunset column into time period datatype by using hms() from lubridate. hms() transforms into hour,minutes and seconds.
+
+Solar_Dataset$TimeSunRise <- hms(Solar_Dataset$TimeSunRise)
+Solar_Dataset$TimeSunSet <- hms(Solar_Dataset$TimeSunSet)
+
+# Taking difference between sunrise and sunset time and converting it into minutes.Created new column DayLight_Minutes which gives how long sun radiation was available throughout the day in minutes. 
+
+Solar_Dataset$DayLight_Minutes <- as.double(Solar_Dataset$TimeSunSet-Solar_Dataset$TimeSunRise,units="mins")
+```
+
+
+```{r}
+# Dropping sunrise and sunset time columns as we created new column "DayLight_Minutes" as above
+Solar_Dataset <- Solar_Dataset[,-c(10,11)]
+
+# Overview of basic statistics such as measures of centre (mean)and measures of spread (quantiles,sd) and distribution of data (histogram) for all variables in dataset.
+
+skimr::skim(Solar_Dataset)
+```
+
+
+
+```{r}
+### Performing shapiro wilk test for normality of data on the dataset by creating samples of size 4500 as shapiro wilk can be applied to datasets with max 5000 observations. In this the null hypothesis states that data are normally distributed. 
+
+start= 1
+increment=4500
+result=""
+for(i in start:increment){
+print(start)
+print(increment)
+
+Solar_Subset <- Solar_Dataset[start:increment,]
+Solar_Subset
+total_records = nrow(Solar_Dataset)
+
+if (increment <= total_records) {
+result=shapiro.test(Solar_Subset$Radiation)
+result_epoch = result 
+start= increment
+increment = increment +4500
+print(result_epoch)
+}
+else {
+ break 
+}
+
+}
+```
+### From shapiro wilk test it is observed that p value is less than alpha(0.05), hence null hypotheis is rejected and we can infer that data is not normally distributed.
+
+
+```{r}
+# Also, Checking normality through histogram plot.
+hist(Solar_Dataset$Radiation)
+```
+### We can observe from above plot that data is skewed for Radiation variable.
+
+```{r}
+# To check skewness in data variables.
+library(e1071)
+skewness(Solar_Dataset$Radiation)
+skewness(Solar_Dataset$Pressure)
+skewness(Solar_Dataset$Humidity)
+skewness(Solar_Dataset$Speed)
+```
+### Positive value infers to right skewness and negative to left skewness of data.
+
+## 3.2 Model Creation:
+
+```{r}
+# Splitting the dataset into training and test data in the ratio 70:30 respectively.
+set.seed(100)
+index_P <- sample(1:nrow(Solar_Dataset),0.70*nrow(Solar_Dataset),replace = FALSE)
+training_data <- Solar_Dataset[index_P,]
+testing_data <- Solar_Dataset[-index_P,]
+```
+
+```{r}
+# Creating a simple linear regression model with Radiation as dependent variable and temperature as independent variable. As Radiation is skewed we perform log(natural logarithm) transformation on it.
+
+solar_pred <- lm(log1p(Radiation)~Temperature,data = training_data)
+solar_pred
+
+summary(solar_pred)
+```
+### Inference from summary statistics above for model1 :
+    1. R-squared value in the above model is 0.5266 which tells that 52.66% variance in dependent variable is explained by the independent variable.This is not very good enough to accept the model.
+    2. Beta estimate  tells that for every unit change in temperature the solar radiation increases by 0.29. So temperature is statistically significant predictor as beta coefficient is positive and p-value(2.2 * 10^-16) is less than alpha(0.05) 
+    3. Residual std. error (std deviation of the residuals) of 1.72 on 22878 DF tells us that lower the value better is the model. Value of 1.72 is lower enough for the model to be fit. 
+
+
+```{r}
+# plotting graphs for above model 
+# residuals vs fitted plot tells about homoscedasticity
+# QQ plots determine normality in the model
+
+par(mfrow=c(2,2))
+plot(solar_pred)
+```
+
+
+
+### Multiple linear regression with radiation as dependent variable and temperature, wind speed, humidity, pressure and daylight_min as independent variables.Performed log transformation on radiation and speed as they are skewed. 
+
+```{r}
+solar_pred_2 <- lm(log1p(Radiation)~Temperature+log1p(Speed)+Humidity+Pressure+DayLight_Minutes,data = training_data)
+solar_pred_2
+summary(solar_pred_2)
+```
+### Inference from summary statistics above for model2 :
+    1. R-squared value in the above model is 0.6101 which tells that 61.01% variance in radiation-dependent variable is explained by the independent variables.This is  good enough than earlier model1. In short, how significant independent variables are to predict outcome variable.
+    
+    2. Beta estimate  tells that for every unit change in temperature the solar radiation increases by 0.35, unit change in Log(speed) the radiation increases by 0.31, for unit change in humidity the solar radiation level increases by 0.0135 whereas for unit change in DayLight duration solar radiation decreases by 0.018 and for unit change in pressure solar radiation decreases by 5.79 . So temperature,Speed,humidity are statistically significant predictors as beta coefficient is positive and p-value(2.2 * 10^-16) is less than alpha(0.05). Also, p-value for predictors Daylight_Minutes and Pressure are less than 0.05 although have negative relationship with dependent variable can be considered as statistically significant independent variables.
+    
+    3. Residual std. error (std deviation of the residuals) of 1.52 on 22878 DF is lower than model1 hence it is better. 
+
+
+```{r}
+# plotting graphs for above model 
+# residuals vs fitted plot tells about homoscedasticity
+# QQ plots determine normality in the model
+
+
+par(mfrow=c(2,2))
+plot(solar_pred_2)
+```
+
+
+```{r}
+# Checking the confidence interval.
+confint(solar_pred_2)
+```
+### Inference from confidence interval:
+    For  independent variables Temperature, Humidity, DayLight_Minutes the confidence interval is lower than 0.1. Also, for Speed and Pressure CI is lower than 1. As, CI is lower the Std error value becomes lower and better estimates of model are achieved.
+
+
+
+## 3.3  Model Diagnostics:
+
+```{r}
+# Checking outliers using residuals(std residuals, internally studentized and externally studentized). Residuals are difference between actual and predicted values.In Studentized residuals observations are deleted and then regression model is assesed.
+
+training_data$Residuals <- resid(solar_pred_2)
+training_data$Int_StudResiduals <- rstandard(solar_pred_2)
+training_data$Ext_StudResiduals <- rstudent(solar_pred_2)
+#training_data
+```
+```{r}
+# plot of residuals vs studentized residuals 
+plot(resid(solar_pred_2), rstudent(solar_pred_2), pch=23, bg='blue', cex=3)
+
+```
+
+```{r}
+# to check the number of observations as outliers using studentized residuals
+
+training_data$Higher_Residuals <- training_data$Ext_StudResiduals>1.96|training_data$Ext_StudResiduals< -1.96
+#training_data
+```
+```{r}
+# Ext_Studentized residuals with higher value than +/-1.96
+ residuals <- training_data %>% filter(Higher_Residuals==TRUE)
+```
+
+```{r}
+# Checking for outlier cases with std. residuals greater than 2.5 and less than -2.5
+# as per the rule only 1% observations(ie. 326) should fall within +/- 2.5 range.
+# As seen below less than 1% (0.63%) observations lie within specified range.
+
+ ext_residuals_2.5 <-  training_data%>% filter(Ext_StudResiduals>2.5 | Ext_StudResiduals < -2.5)
+```
+
+
+```{r}
+# Also, 99.7% cases while fall within 3 std residuals. Hence we check the condition below and look out for number of observations. We find less than 0.3% observations (18) as outliers 
+
+ ext_residuals_99 <- training_data%>% filter(Ext_StudResiduals>3 | Ext_StudResiduals < -3)
+```
+
+###  Finding influential cases:
+
+1. Cooks Distance:The cut off value as outlier is 4/N(N=sample size) so it is 4/22880= 0.00017
+```{r}
+training_data$CooksDistance_value <- cooks.distance(solar_pred_2)
+
+```
+
+```{r}
+# Also, plotting cooks distance value to confirm/modify cut off value for deciding influential cases.
+
+plot(cooks.distance(solar_pred_2), pch=23, bg='orange', cex=2, ylab="Cook's distance")
+abline(h=0.00017,col="red")
+abline(h=0.0006,col="green")
+```
+```{r}
+# From above plot it is observed that taking cut-off value as 0.0006 is more apt.
+#training_data %>% filter(CooksDistance_value> 0.0006)
+```
+
+
+2. DFFIT - 
+
+```{r}
+training_data$DFFIT_value <- dffits(solar_pred_2)
+#training_data
+```
+
+```{r}
+# Critical value for DFFIT is calculated as "2* sqrt(k+1/n)" ie 2*sqrt(6/22880)~ 0.02
+
+#training_data %>% filter(DFFIT_value> 0.02)
+```
+
+```{r}
+# From below plot it is depicted that cut off value for DFFIT of 0.05 separates outliers than 0.02
+
+plot(dffits(solar_pred_2), pch=23, bg='green', cex=2, ylab="DFFIT Value")
+abline(h=0.03,col="red")
+abline(h=0.05,col="blue")
+```
+3. leverage: It is standardized distance to mean of predictors.
+
+```{r}
+training_data$leverage <- hatvalues(solar_pred_2)
+head(training_data)
+```
+
+```{r}
+#  Critical value for leverage > (2k+1)/N ie (2*5+1)/22880~0.00048
+plot(hatvalues(solar_pred_2), pch=23, bg='green', cex=2, ylab="hat Value")
+abline(h=0.00048,col="red")
+abline(h=0.0008,col="blue")
+```
+```{r}
+#training_data %>% filter(leverage> 0.0008)
+```
+
+
+
+4. Covariance ratio:
+
+
+```{r}
+training_data$covariance.ratios<-covratio(solar_pred_2)
+head(training_data)
+```
+
+```{r}
+# Critical value is 1+[3(k+1)/n]= 1+[(3*6/22880)]~ 1.00078
+
+#training_data %>% filter(covariance.ratios> 1.0008)
+
+```
+
+### Deleting influential cases as per above diagnostic approaches(Cooks distance, DFFIT, leverage and covariance ratio):
+
+```{r}
+Training_Data_Without_Outliers <- training_data[-c(which(cooks.distance(solar_pred_2) > 0.0006 | dffits(solar_pred_2) > 0.03  | hatvalues(solar_pred_2)> 0.0008 | covratio(solar_pred_2) > 1.0008)),]
+
+```
+
+```{r}
+#Training_Data_Without_Outliers
+```
+### 3.4 Creating 3rd multiple regression model after deleting influential cases
+
+```{r}
+solar_pred_3 <- lm(log1p(Radiation)~Temperature+log1p(Speed)+Humidity+Pressure+DayLight_Minutes,data = Training_Data_Without_Outliers)
+solar_pred_3
+summary(solar_pred_3)
+```
+### Inference from summary statistics above for model3 :
+    1. R-squared value in the above model is 0.6558 which tells that 65.58% variance in radiation-dependent variable is explained by the independent variables.This is  better than earlier model2. 
+    
+    2. Beta estimate  tells that for every unit change in temperature the solar radiation increases by 0.37, unit change in Log(speed) the radiation increases by 0.45, for unit change in humidity the solar radiation level increases by 0.0135 whereas for unit change in DayLight duration solar radiation decreases by 0.018 and for unit change in pressure solar radiation decreases by 6.26 . So temperature,Speed,humidity are statistically significant predictors as beta coefficient is positive and p-value(2.2 * 10^-16) is less than alpha(0.05). Also, p-value for predictors Daylight_Minutes and Pressure are less than 0.05 although have negative relationship with dependent variable can be considered as statistically significant independent variables.
+    
+    3. Residual std. error (std deviation of the residuals) of 1.46 on 22878 DF is lower than model2 which is good fit. 
+
+
+## 3.4 Multiple Linear regression assumptions check:
+
+1. Independence of residual errors -  Measure of autocorrelation in residuals
+```{r}
+library(car)
+durbinWatsonTest(solar_pred_3)
+
+```
+
+### From above durbin watson test the statistic value of 1.99 is closer to 2 which satisfies criteria of no correlation among residual errors.
+
+2. Multicollinearity assumption: To check whether independent variables are correlated with each other using variance inflation factor(vif) values  and test statistic(1/vif)
+
+```{r}
+print("Vif-Values")
+print(vif(solar_pred_3))
+print("Tolerance Statistics")
+print(1/vif(solar_pred_3))
+print("Average Vif")
+print(mean(vif(solar_pred_3)))
+```
+
+### From above vif values we can infer that all vif values are less than 10 and tolerance statistics is >0.2. Hence there is no multicollinearity among independent variables.
+
+3. Assumption of Normal residuals:
+
+```{r}
+# Residuals vs Fitted values plot
+plot(solar_pred_3,which=1)
+
+```
+
+### From above plot we can observe that there is no funnel shape,that is constant variance is seen. Heteroscedasticity(lot of variation) leads to bias in std. errors which in return leads to issues in hypothesis testing. If hypothesis testing is biased it leads to wrong inferences.But our model doesn't suffer from heteroscedasticity, it adheres to the assumption of homoscedasticity.
+
+
+```{r}
+# Quantile Quantile (QQ) plot
+plot(solar_pred_3,which=2)
+```
+
+### Above QQ plot tells us that most data points lie on regression line following the normality pattern.
+
+```{r}
+# Histogram of residuals:
+histogram<-ggplot(Training_Data_Without_Outliers, aes(Ext_StudResiduals))
+histogram+geom_histogram(aes(y=..density..), colour="blue", fill="yellow") +
+  labs(x="Studentised Residual", y= "Density") +
+  stat_function(fun=dnorm, args = list(mean= mean(Training_Data_Without_Outliers$Ext_StudResiduals, na.rm = TRUE), 
+                                       sd= sd(Training_Data_Without_Outliers$Ext_StudResiduals, na.rm = TRUE)), 
+                colour = "red", size =1)
+```
+
+### Above histogram has approximately normally distributed studentized residuals.
+
+## 3.5 Model Validation on test data
+
+```{r}
+predicted_values_testdata <- predict(solar_pred_3,newdata = testing_data)
+predicted_values_testdata <- expm1(predicted_values_testdata)
+test_actual_values <- testing_data$Radiation
+testdata_df <-  data.frame(predicted_values_testdata,test_actual_values)
+#(testdata_df)
+```
+
+# 4. Conclusion:
+
+We can conclude from good fit model statistics(R-squared value of 0.65 and std residual error 1.46) and above assumptions pertaining to multiple linear regression, that factors such as Temperature, Humidity, Wind Speed, DayLight and Wind Pressure are significant in predicting the Solar Radiation level.
+ 
